@@ -25,9 +25,3 @@ Projeto acadêmico para organizar, avaliar e publicar dados municipais. O painel
 2. Copie `.env.example` para `.env` e preencha a URL do Supabase, a chave Publishable e a URL do pool PostgreSQL.
 3. Para testar localmente por HTTP, use `COOKIE_SECURE=false`.
 4. Rode `python -m uvicorn app.main:app --port 8019` e abra `http://127.0.0.1:8019/login`.
-
-## Como publicar no Vercel
-
-Importe este repositório no Vercel como um projeto **FastAPI**. Configure as variáveis do `.env.example` no painel do Vercel, use a URL do **Transaction pooler** do Supabase e mantenha `COOKIE_SECURE=true`.
-
-Os dados e o gabarito ficam no Supabase. Mantenha o `.env` com as credenciais fora do GitHub.
