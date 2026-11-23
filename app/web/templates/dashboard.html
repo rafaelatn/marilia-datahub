@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Marília DataHub — Painel da Gestão</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js" defer></script>
+<link rel="stylesheet" href="/assets/dashboard.css">
+</head>
+<body>
+<div class="app" id="app">
+  <aside class="side" id="side"></aside>
+  <div class="main">
+    <header class="top">
+      <button class="ib" data-a="menu" aria-label="Alternar menu lateral"></button>
+      <div class="crumb"><span>Marília DataHub</span><span>/</span><b id="crumb"></b></div>
+      <div class="sp"></div>
+      <button class="btn p" data-a="imp" id="impBtn" aria-label="Importar arquivo"></button>
+      <select id="role" aria-label="Visualizar como">
+        <option value="admin">Visualizar como: Admin (STI)</option>
+        <option value="saude">Secretaria de Saúde</option>
+        <option value="obras">Secretaria de Obras</option>
+        <option value="ambiente">Secretaria de Meio Ambiente</option>
+      </select>
+      <button class="ib" data-a="theme" id="themeBtn" aria-label="Alternar tema"></button>
+      <div class="me"><div class="av" id="av"></div><span id="who"></span></div>
+    </header>
+    <main class="page" id="page"></main>
+  </div>
+</div>
+<script src="/assets/dashboard-shell.js" defer></script>
+<script src="/assets/dashboard-api.js" defer></script>
+</body>
+</html>

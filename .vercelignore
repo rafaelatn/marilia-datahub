@@ -1,0 +1,16 @@
+.env
+.env.*
+.git
+.venv
+.vercel
+**/__pycache__
+tests
+data
+source
+backups
+supabase
+scripts
+*.dump
+*.sqlite*
+*.log
+*carregar-marilia*.sql

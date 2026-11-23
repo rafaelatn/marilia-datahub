@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>Entrar · Marília DataHub</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg:#fafafa; --card:#fff; --fg:#0a0a0a; --mut:#62626b;
+      --bd:#e4e4e7; --field:#fafafa; --pri:#4f46e5; --focus:#4338ca;
+      --alert:#9f1239; --alert-bg:#fff1f2; color-scheme:light;
+    }
+    @media (prefers-color-scheme:dark) {
+      :root {
+        --bg:#09090b; --card:#111113; --fg:#fafafa; --mut:#a1a1aa;
+        --bd:#303038; --field:#1b1b1e; --pri:#4f46e5; --focus:#a5b4fc;
+        --alert:#fecdd3; --alert-bg:#35151e; color-scheme:dark;
+      }
+    }
+    * {box-sizing:border-box}
+    body {
+      min-height:100svh; margin:0; display:grid; place-items:center;
+      padding:clamp(12px,4vw,52px); background:var(--bg); color:var(--fg);
+      font:14px/1.5 Geist,Inter,system-ui,sans-serif;
+    }
+    .stage {
+      width:min(100%,1060px); min-height:min(650px,calc(100svh - 104px));
+      position:relative; isolation:isolate; overflow:hidden;
+      display:grid; place-items:center; padding:clamp(24px,6vw,72px) 16px;
+      border-radius:20px; background:linear-gradient(130deg,#171744 5%,#28327c 53%,#335d9b);
+      box-shadow:0 18px 42px #10143c29;
+    }
+    .stage::before,.stage::after {content:""; position:absolute; z-index:-1; pointer-events:none}
+    .stage::before {
+      inset:0; background:radial-gradient(circle,#fff5 1px,transparent 1.5px) right bottom/22px 22px;
+      mask-image:linear-gradient(125deg,transparent 42%,#0009);
+    }
+    .stage::after {
+      width:145%; height:70%; left:-30%; bottom:-45%; border-radius:50%;
+      transform:rotate(10deg); background:linear-gradient(105deg,#786bf26b,#66a9f238);
+      box-shadow:0 -38px 0 #a3a3ee12;
+    }
+    .card {
+      width:min(100%,390px); padding:clamp(22px,5vw,34px); background:var(--card);
+      border:1px solid var(--bd); border-radius:16px; box-shadow:0 18px 46px #080b354d;
+    }
+    .brand {display:flex; align-items:center; gap:10px; font-weight:650; margin-bottom:24px}
+    .logo {display:grid; place-items:center; width:34px; height:34px; border-radius:9px; background:var(--pri); color:white; font-size:12px}
+    h1 {font-size:25px; line-height:1.2; letter-spacing:-.035em; margin:0 0 5px}
+    .subtitle {color:var(--mut); margin:0 0 20px}
+    form {display:grid; gap:13px}
+    label {display:grid; gap:5px; font-size:13px; font-weight:600}
+    input,button {font:inherit; min-height:44px; border-radius:8px}
+    input {width:100%; min-width:0; padding:9px 11px; border:1px solid var(--bd); background:var(--field); color:var(--fg)}
+    input::placeholder {color:var(--mut)}
+    button {margin-top:5px; padding:9px 14px; color:white; background:var(--pri); border:0; font-weight:650; cursor:pointer}
+    button:hover {background:#4338ca}
+    :focus-visible {outline:2px solid var(--focus); outline-offset:3px}
+    .alert {margin:0 0 14px; padding:9px 11px; border-radius:8px; color:var(--alert); background:var(--alert-bg)}
+    .alert:empty {display:none}
+    @media (max-width:520px) {
+      .stage {min-height:calc(100svh - 24px); border-radius:14px}
+    }
+  </style>
+</head>
+<body>
+  <main class="stage">
+    <section class="card" aria-labelledby="login-title">
+      <div class="brand"><span class="logo" aria-hidden="true">MD</span>Marília DataHub</div>
+      <h1 id="login-title">Entrar no painel</h1>
+      <p class="subtitle">Use sua conta para acessar o painel de gestão.</p>
+      <p class="alert" role="alert">${LOGIN_ERROR}</p>
+      <form action="/login" method="post">
+        <label>E-mail
+          <input name="email" type="email" value="${LOGIN_EMAIL}" autocomplete="username"
+            autocapitalize="none" placeholder="nome@exemplo.com" required>
+        </label>
+        <label>Senha
+          <input name="password" type="password" autocomplete="current-password" required>
+        </label>
+        <button type="submit">Entrar</button>
+      </form>
+    </section>
+  </main>
+</body>
+</html>

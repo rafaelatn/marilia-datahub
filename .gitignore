@@ -1,0 +1,16 @@
+.env
+.env.*
+!.env.example
+.venv/
+.vercel/
+__pycache__/
+*.py[cod]
+data/
+source/
+backups/
+*.dump
+*.sqlite*
+*.log
+*carregar-marilia*.sql
+*.pem
+*.key
