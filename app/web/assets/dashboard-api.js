@@ -72,32 +72,66 @@ function chart(series,compact=false){
 }
 function qualityComparison(v){
   const {raw_quality:raw,processed_quality:processed,raw_count,processed_count}=v.processing;
-  const dimensions=[
-    ['completeness','Completude','Campos obrigatórios preenchidos'],
-    ['conformity','Conformidade estrutural','Campos conformes ao esquema do dataset'],
-    ['consistency','Consistência','Registros sem repetição na chave de identificação'],
-    ['validity','Validade','Valores preenchidos conformes ao tipo, formato e domínio'],
-  ];
-  function metric(q,key,rows){
-    if(!rows)return 'Sem registros';
-    const m=q.dimensions[key];
-    if(m.score==null)return 'Sem verificações';
-    return `<b>${numberBR(m.score)}%</b><br><span class="sub">${numberBR(m.valid)} de ${numberBR(m.checked)} verificações conformes</span>`;
-  }
+  const {dimensions,record_conformity:records,schema_version:version}=v.quality;
+  const fields=dimensions.conformity;
   const initial=v.initial_diagnosis;
-  const actual=v.quality.dimensions.conformity;
+  const percent=metric=>metric?.score==null?'—':`${numberBR(metric.score)}%`;
+  const count=metric=>`${numberBR(metric.valid)} de ${numberBR(metric.checked)}`;
+  function card(label,metric,unit){
+    return `<div class="conformity-card">
+      <h4>${label}</h4><strong>${percent(metric)}</strong>
+      ${metric?.score==null?'<p>Sem dados para avaliar</p>':`
+        <div class="conformity-track" aria-hidden="true"><span style="width:${metric.score}%"></span></div>
+        <p>${count(metric)} ${unit} no padrão</p>`}
+    </div>`;
+  }
+  const hasBaseline=initial?.fields?.score!=null;
+  const gain=hasBaseline&&fields.score!=null?Math.round((fields.score-initial.fields.score)*100)/100:null;
+  const history=hasBaseline?`<div class="conformity-history-row"><span>Campos no padrão</span>
+      <b>${percent(initial.fields)} → ${percent(fields)}</b>
+      ${gain==null?'':`<span>${gain>0?'+':''}${numberBR(gain)} p.p.</span>`}</div>
+    <div class="conformity-history-row"><span>Linhas no padrão</span>
+      <b>${percent(initial.record_conformity)} → ${percent(records)}</b></div>`
+    :'<p>Esta carga não tem um diagnóstico inicial registrado. Os números acima mostram a situação de hoje.</p>';
+  const breakdown=[
+    ['completeness','Campos obrigatórios preenchidos'],
+    ['consistency','Linhas sem chave repetida'],
+    ['validity','Valores preenchidos no tipo, formato e categoria esperados'],
+  ];
+  const detail=(q,key)=>{
+    const metric=q.dimensions[key];
+    return metric.score==null?'Sem dados':`${percent(metric)} <span class="sub">(${count(metric)})</span>`;
+  };
   const review=v.semantic_review;
-  const semantic=review?.status==='indisponivel'?' · Análise semântica indisponível na importação':
-    review?.avaliados?(' · MiniLM'+(review.status==='parcial'?' (amostra)':'')+': '+numberBR(review.sugestoes)+' sugestões'):'';
-  const gain=initial?.score!=null&&actual.score!=null
-    ? `${numberBR(Math.round((actual.score-initial.score)*100)/100)} p.p.` : 'Indisponível';
-  const fraction=m=>m?.score!=null ? `${numberBR(m.score)}% (${numberBR(m.valid)}/${numberBR(m.checked)})` : 'Indisponível';
-  return panel('Conformidade estrutural',`Esquema v${v.quality.schema_version} · Variação nos campos: ${gain}${semantic}`,`<div class="tw"><table>
-    <thead><tr><th>Unidade avaliada</th><th>Antes do tratamento</th><th>Estado atual</th></tr></thead>
-    <tbody><tr><th scope="row">Campos</th><td>${fraction(initial?.fields)}</td><td>${fraction(actual)}</td></tr>
-    <tr><th scope="row">Registros</th><td>${fraction(initial?.record_conformity)}</td><td>${fraction(v.quality.record_conformity)}</td></tr></tbody></table></div>
-    <div class="tw"><table><thead><tr><th>Dimensão</th><th>Brutos atuais</th><th>Processados atuais</th><th>O que foi verificado</th></tr></thead>
-    <tbody>${dimensions.map(([key,label,rule])=>`<tr><th scope="row">${label}</th><td>${metric(raw,key,raw_count)}</td><td>${metric(processed,key,processed_count)}</td><td>${rule}</td></tr>`).join('')}</tbody></table></div>`);
+  const semantic=review?.status==='indisponivel'?'Análise com IA indisponível na importação.':
+    review?.avaliados?`MiniLM · ${numberBR(review.sugestoes)} sugestões geradas${review.status==='parcial'?' em uma amostra':''}.`:'';
+  return panel('Conformidade estrutural','Quanto desta planilha está dentro do padrão',`
+    <div class="conformity-section">
+      <h4>Situação atual da planilha</h4>
+      <div class="conformity-grid">
+        ${card('Campos no padrão',fields,'campos')}
+        ${card('Linhas no padrão',records,'linhas')}
+      </div>
+    </div>
+    <div class="conformity-section conformity-history">
+      <h4>Na importação → Hoje</h4>${history}
+    </div>
+    <div class="conformity-section">
+      <h4>Como estão os campos em cada grupo hoje</h4>
+      <div class="conformity-grid">
+        ${card(`Ainda em tratamento · ${numberBR(raw_count)} linhas`,raw.dimensions.conformity,'campos')}
+        ${card(`Já processados · ${numberBR(processed_count)} linhas`,processed.dimensions.conformity,'campos')}
+      </div>
+    </div>
+    <details class="conformity-details">
+      <summary>Ver detalhes da validação</summary>
+      <p><b>Regras de validação da planilha · versão ${esc(version)}</b><br>
+        Definem as colunas, os campos obrigatórios, os formatos, os valores permitidos e como identificar linhas repetidas.</p>
+      ${semantic?`<p>${semantic}</p>`:''}
+      <div class="tw"><table><thead><tr><th>O que foi verificado</th><th>Em tratamento</th><th>Processados</th></tr></thead>
+      <tbody>${breakdown.map(([key,label])=>`<tr><th scope="row">${label}</th>
+        <td>${detail(raw,key)}</td><td>${detail(processed,key)}</td></tr>`).join('')}</tbody></table></div>
+    </details>`);
 }
 function datasetQuality(d, compact=false){
   const v=currentVersion(d),q=v.quality,initial=v.initial_diagnosis;
