@@ -267,3 +267,49 @@ tr:last-child td{border-bottom:0}
 .distribution-summary .btn {
   margin-left: auto;
 }
+
+.conformity-section + .conformity-section { margin-top: 1.15rem; }
+.conformity-section h4 { font-size: .9rem; margin: 0 0 .65rem; }
+.conformity-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: .75rem;
+}
+.conformity-card, .conformity-history {
+  border: 1px solid var(--bd);
+  border-radius: var(--r);
+  padding: .9rem 1rem;
+}
+.conformity-card strong {
+  display: block;
+  font-size: clamp(1.6rem, 3vw, 2.15rem);
+  line-height: 1.15;
+  font-variant-numeric: tabular-nums;
+}
+.conformity-card p, .conformity-history p, .conformity-details p {
+  color: var(--mut);
+  font-size: .875rem;
+  margin: .55rem 0 0;
+}
+.conformity-track {
+  height: .375rem;
+  border-radius: 999px;
+  background: var(--mu);
+  overflow: hidden;
+  margin-top: .7rem;
+}
+.conformity-track span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--pri);
+}
+.conformity-history { background: var(--mu); }
+.conformity-history-row { display: flex; flex-wrap: wrap; align-items: baseline; gap: .35rem .85rem; }
+.conformity-history-row + .conformity-history-row { margin-top: .45rem; }
+.conformity-details { border-top: 1px solid var(--bd); margin-top: 1.15rem; padding-top: .85rem; }
+.conformity-details summary { cursor: pointer; font-weight: 650; }
+.conformity-details p + .tw { margin-top: .75rem; }
+@media (max-width: 540px) {
+  .conformity-grid { grid-template-columns: 1fr; }
+}
