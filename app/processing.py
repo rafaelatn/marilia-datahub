@@ -1,8 +1,6 @@
 from copy import deepcopy
-import os
-from app import store
-from app.demo_reference import accuracy
 from app.quality import evaluate
+from app.schema import dataset_schema
 
 PUBLICATION_MIN_SCORE=95
 
@@ -17,31 +15,28 @@ def department_quality(datasets, department):
         'datasets':dict(scores),
     }
 
-BUSINESS_KEYS={
-    'SMS_atendimentos_ubs':['data_referencia','unidade','tipo_atendimento'],
-    'SMS_vacinacao':['data_referencia','unidade','vacina'],
-    'SME_matriculas_escolas':['ano_letivo','escola','etapa'],
-    'SAS_familias_cras':['data_referencia','cras'],
-    'SAS_chamados_ti':['data_referencia','secretaria','tipo_chamado'],
-}
-
 def dataset_quality(d, rows, version=None):
-    keys=BUSINESS_KEYS.get(d['id'],sorted(c['nome_coluna'] for c in d['dictionary'] if c['obrigatoria']))
-    quality=evaluate(rows,d['dictionary'],keys)
-    source=None
-    if d['id'] in BUSINESS_KEYS and (version or {}).get('accuracy_reference',True):
-        if store.demo():
-            source=store.ROOT/'source/accuracy_reference_demo.json'
-        elif d.get('synthetic_reference_id'):
-            source=(os.getenv('SUPABASE_URL'),d['synthetic_reference_id'])
-    if source is not None:
-        metric=accuracy(source,d['id'],keys,rows,d['dictionary'])
-        quality['dimensions']['accuracy']=metric
-        quality['metrics'][1]=metric['score']
-        measured=[value for value in quality['metrics'] if value is not None]
-        quality['measured_dimensions']=len(measured)
-        quality['score']=round(sum(measured)/len(measured),2) if measured else 0
-    return quality
+    schema=dataset_schema(d,version)
+    result=evaluate(rows,schema['colunas'],schema['chave'])
+    result['schema_version']=schema['versao']
+    return result
+
+
+def baseline(d,v,rows=None):
+    rows=v['rows'] if rows is None else rows
+    quality=dataset_quality(d,rows,v)
+    return {'version':v['number'], 'records':len(rows), 'created_at':v['created_at'],
+            'schema_version':quality['schema_version'], 'score':quality['dimensions']['conformity']['score'],
+            'fields':quality['dimensions']['conformity'], 'record_conformity':quality['record_conformity']}
+
+
+def stored_baseline(d,v):
+    initial=v.get('initial_diagnosis')
+    schema=dataset_schema(d,v)
+    if initial and initial.get('schema_version')==schema['versao'] and 'fields' in initial:
+        return initial
+    return None
+
 
 def publication_check(d,v,quality=None):
     indices=[i for i,s in enumerate(states(v)) if s=='processed']
@@ -50,13 +45,13 @@ def publication_check(d,v,quality=None):
     dimensions=quality['dimensions']
     missing=dimensions['completeness']['failures']
     duplicates=dimensions['consistency']['failures']
-    invalid=dimensions['validity']['failures']
+    invalid=dimensions['conformity']['failures']-missing
     reasons=[]
     if not rows: reasons.append('Nenhum registro processado')
-    if quality['score']<PUBLICATION_MIN_SCORE: reasons.append(f'Score inferior a {PUBLICATION_MIN_SCORE}/100')
+    if quality['score']<PUBLICATION_MIN_SCORE: reasons.append(f'Conformidade estrutural inferior a {PUBLICATION_MIN_SCORE}/100')
     if missing: reasons.append(f'Campo obrigatório vazio ({missing})')
     if duplicates: reasons.append(f'Duplicata na chave de identificação ({duplicates})')
-    if invalid: reasons.append(f'Data, valor ou categoria inválida ({invalid})')
+    if invalid: reasons.append(f'Campo fora do esquema ({invalid})')
     if d['classification']!='publico': reasons.append('Classificação não pública')
     if d['personal']: reasons.append('Contém dados pessoais')
     return {'eligible':not reasons,'min_score':PUBLICATION_MIN_SCORE,'score':quality['score'],

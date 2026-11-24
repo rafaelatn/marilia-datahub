@@ -1,129 +1,170 @@
-"""Regras explicáveis derivadas do notebook de limpeza fornecido."""
+"""Validate data and propose corrections using the dataset schema."""
 import json
 import math
 import re
 import unicodedata
 from datetime import date, datetime
-from rapidfuzz import process, fuzz
+from decimal import Decimal, InvalidOperation
 
-BAIRROS = ['Centro', 'Fragata', 'Palmital', 'Cascata']
-ALIASES = {'ubs ex. cascata': 'UBS Exemplo Cascata', 'escola exemplo fragata 2': 'Escola Exemplo Fragata II', 'cras cascata': 'CRAS Exemplo Cascata'}
-DICTIONARY_DOMAINS = {
-    'tipo_atendimento': ('Consulta médica', 'Enfermagem', 'Odontológico'),
-    'etapa': ('Educação Infantil', 'Fundamental I', 'Fundamental II'),
-    'tipo_chamado': ('Hardware', 'Rede', 'Sistema'),
-}
+from rapidfuzz import fuzz, process
 
-def plain(v):
-    if v is None or (isinstance(v, float) and not math.isfinite(v)):
+
+def plain(value):
+    if value is None or (isinstance(value, float) and not math.isfinite(value)):
         return None
-    if isinstance(v, (datetime, date)):
-        return v.isoformat()[:10]
-    if hasattr(v, 'item'):
-        return plain(v.item())
-    return v
+    if isinstance(value, (datetime, date)):
+        return value.isoformat()[:10]
+    if hasattr(value, 'item'):
+        return plain(value.item())
+    return value
 
-def norm(v):
-    return ''.join(c for c in unicodedata.normalize('NFD', str(v).strip().lower()) if unicodedata.category(c) != 'Mn')
+
+def norm(value):
+    return ''.join(
+        char for char in unicodedata.normalize('NFD', str(value).strip().lower())
+        if unicodedata.category(char) != 'Mn'
+    )
+
 
 def suggestion_similarity(issue):
-    """Compare text labels on the same scale, including older suggestions."""
     before, after = issue.get('before'), issue.get('after')
-    if issue.get('column') not in {'bairro', 'secretaria', 'unidade', 'escola', 'cras'}:
-        return None
     if not all(isinstance(value, str) and value.strip() for value in (before, after)):
         return None
     return round(fuzz.ratio(before, after), 1)
 
-def canonical(column, value):
-    if value is None:
+
+def missing(value):
+    return value is None or (isinstance(value, str) and not value.strip())
+
+
+def number(value, rule):
+    if isinstance(value, bool):
         return None
+    try:
+        parsed = Decimal(str(value).strip())
+    except (InvalidOperation, ValueError):
+        return None
+    if not parsed.is_finite():
+        return None
+    if rule['tipo_dado'] == 'inteiro' and parsed != parsed.to_integral_value():
+        return None
+    if 'minimo' in rule and parsed < Decimal(str(rule['minimo'])):
+        return None
+    try:
+        converted = int(parsed) if rule['tipo_dado'] == 'inteiro' else float(parsed)
+        return converted if rule['tipo_dado'] == 'inteiro' or math.isfinite(converted) else None
+    except (OverflowError, ValueError):
+        return None
+
+
+def parse_date(value, rule):
     text = str(value).strip()
-    if column == 'bairro':
-        return next((b for b in BAIRROS if norm(b) == norm(text)), text)
-    if column == 'secretaria':
-        return {'saude':'SMS','sms':'SMS','sme':'SME','sas':'SAS','seti':'SETI'}.get(norm(text), text)
-    if column in ('unidade','escola','cras'):
-        return ALIASES.get(text.lower(), text)
-    if column == 'data_referencia':
-        months = dict(zip('jan fev mar abr mai jun jul ago set out nov dez'.split(), range(1,13)))
-        match = re.fullmatch(r'([a-z]{3})/(\d{2}|\d{4})', text.lower())
+    output = rule.get('formato', '%Y-%m-%d')
+    parsed = None
+    for fmt in (output, *rule.get('formatos_entrada', [])):
         try:
-            if match:
-                y = int(match[2]); return date(y + 2000 if y < 100 else y, months[match[1]], 1).isoformat()
-            if re.fullmatch(r'\d{4}-\d{2}(?:-\d{2})?', text):
-                return date.fromisoformat(text if len(text)==10 else text+'-01').replace(day=1).isoformat()
-            for fmt in ('%d/%m/%Y', '%Y-%m-%d %H:%M:%S'):
-                try: return datetime.strptime(text, fmt).replace(day=1).date().isoformat()
-                except ValueError: pass
-        except (ValueError, KeyError):
-            pass
-    return text if isinstance(value, str) else value
+            parsed = datetime.strptime(text, fmt).date()
+            break
+        except ValueError:
+            continue
+    months = rule.get('meses_abreviados', [])
+    match = re.fullmatch(r'([a-z]{3})/(\d{2}|\d{4})', norm(text))
+    if parsed is None and match and match[1] in months:
+        year = int(match[2])
+        try:
+            parsed = date(year+2000 if len(match[2]) == 2 else year, months.index(match[1])+1, 1)
+        except ValueError:
+            return None
+    if parsed is None:
+        return None
+    return parsed.replace(day=rule.get('dia_do_mes', parsed.day)).strftime(output)
+
+
+def cell_check(value, rule):
+    kind = rule['tipo_dado']
+    if kind in ('inteiro', 'decimal'):
+        corrected = number(value, rule)
+        if corrected is None:
+            return 'Número inválido ou fora do intervalo', None
+        if isinstance(value, str):
+            return 'Tipo numérico fora do padrão', corrected
+        return None, None
+    if kind == 'data':
+        corrected = parse_date(value, rule)
+        return ('Data fora do padrão', corrected) if corrected is None or corrected != value else (None, None)
+    if not isinstance(value, str):
+        return 'Texto inválido', None
+    text = value.strip()
+    aliases = {norm(alias): target for alias, target in rule.get('aliases_valores', {}).items()}
+    corrected = aliases.get(norm(text), text)
+    allowed = rule.get('valores_permitidos')
+    if allowed is not None and corrected not in allowed:
+        corrected = next((label for label in allowed if norm(label) == norm(corrected)), None)
+        threshold = rule.get('similaridade_minima')
+        if corrected is None and threshold is not None:
+            match = process.extractOne(text, allowed, scorer=fuzz.WRatio, score_cutoff=threshold)
+            corrected = match[0] if match else None
+    pattern = rule.get('formato')
+    if corrected is None or (pattern and not re.fullmatch(pattern, corrected)):
+        return 'Texto fora do formato ou domínio permitido', None
+    if corrected != value:
+        return 'Padronização conforme esquema do dataset', corrected
+    return None, None
+
+
+def dimension(checked, failures):
+    valid = checked - failures
+    return {'score': round(100 * valid / checked, 2) if checked else None,
+            'checked': checked, 'valid': valid, 'failures': failures}
+
 
 def evaluate(rows, dictionary, keys=None):
-    required = {d['nome_coluna'] for d in dictionary if d['obrigatoria']}
-    missing = lambda v: v is None or (isinstance(v,str) and not v.strip())
-    issues=[]
-    absent=checked_values=invalid=duplicates=0
-    seen_rows=set()
-    seen_keys=set()
-    for i,row in enumerate(rows):
-        signature=json.dumps(row,sort_keys=True,ensure_ascii=False)
-        exact_duplicate=signature in seen_rows
-        if exact_duplicate:
-            issues.append({'row':i,'column':'*','before':row,'after':None,'reason':'Registro duplicado'})
-        seen_rows.add(signature)
-        key=json.dumps([row.get(c) for c in keys],ensure_ascii=False) if keys else signature
-        if key in seen_keys:
-            duplicates+=1
-            if not exact_duplicate:
-                issues.append({'row':i,'column':'*','before':row,'after':None,
-                               'reason':'Chave duplicada com valores diferentes'})
-        seen_keys.add(key)
-        for d in dictionary:
-            c=d['nome_coluna']; v=row.get(c)
-            if missing(v):
-                absent+=c in required
-                issues.append({'row':i,'column':c,'before':v,'after':None,'reason':'Valor ausente; exige confirmação da fonte'})
-                continue
-            checked_values+=1
-            corrected=canonical(c,v); reason=None
-            if corrected != v: reason='Padronização conforme notebook'
-            allowed=d.get('valores_permitidos',DICTIONARY_DOMAINS.get(c))
-            if allowed and v not in allowed: reason='Categoria fora do dicionário'; corrected=None
-            if d['tipo_dado']=='texto' and not isinstance(v,str): reason='Texto inválido'; corrected=None
-            if c=='bairro' and v not in BAIRROS: reason='Bairro fora do padrão'
-            if c=='secretaria' and v not in ('SMS','SME','SAS','SETI'): reason='Sigla fora do padrão'
-            refs = None
-            if c=='unidade': refs=['UBS Exemplo '+b for b in BAIRROS]
-            if c=='cras': refs=['CRAS Exemplo '+b for b in BAIRROS]
-            if c=='escola': refs=['Escola Exemplo '+b+suffix for b in BAIRROS for suffix in ('',' II')]
-            if refs and v not in refs:
-                reason='Nome de unidade fora do padrão'
-                match=process.extractOne(str(v),refs,scorer=fuzz.WRatio)
-                corrected=match[0] if match and match[1]>=80 else None
-            if d['tipo_dado'] in ('inteiro','decimal'):
-                try:
-                    number=float(v)
-                    if not math.isfinite(number) or number < 0 or (d['tipo_dado']=='inteiro' and not number.is_integer()): reason='Número inválido'; corrected=None
-                except (ValueError,TypeError): reason='Número inválido'; corrected=None
-            if d['tipo_dado']=='data':
-                try:
-                    if not isinstance(v,str) or date.fromisoformat(v).day!=1: reason='Formato de data fora do padrão'
-                except (ValueError,TypeError): reason='Formato de data fora do padrão'
+    required = {column['nome_coluna'] for column in dictionary if column['obrigatoria']}
+    issues = []
+    absent = checked_values = invalid = duplicates = failed_fields = failed_rows = 0
+    seen_keys = {}
+    for index, row in enumerate(rows):
+        signature = json.dumps(row, sort_keys=True, ensure_ascii=False)
+        key_values = [row.get(column) for column in keys or ()]
+        key = (json.dumps(key_values, ensure_ascii=False)
+               if key_values and not any(missing(value) for value in key_values) else signature)
+        duplicate = key in seen_keys
+        if duplicate:
+            duplicates += 1
+            reason = ('Registro duplicado' if signature == seen_keys[key]
+                      else 'Chave duplicada com valores diferentes')
+            issues.append({'row': index, 'column': '*', 'before': row, 'after': None, 'reason': reason})
+        else:
+            seen_keys[key] = signature
+        row_failures = 0
+        for rule in dictionary:
+            column = rule['nome_coluna']
+            value = row.get(column)
+            if missing(value):
+                if column in required:
+                    absent += 1
+                    reason = 'Valor obrigatório ausente; exige confirmação da fonte'
+                elif column not in row:
+                    reason = 'Coluna ausente no arquivo'
+                else:
+                    continue
+                corrected = None
+            else:
+                checked_values += 1
+                reason, corrected = cell_check(value, rule)
+                invalid += reason is not None
             if reason:
-                invalid+=1
-                issues.append({'row':i,'column':c,'before':v,'after':corrected if corrected!=v else None,'reason':reason})
-    def dimension(checked, failures):
-        score=round(100*(checked-failures)/checked,2) if checked else None
-        return {'score':score,'checked':checked,'failures':failures}
-    dimensions={
-        'completeness':dimension(len(rows)*len(required),absent),
-        'accuracy':dimension(0,0),
-        'consistency':dimension(len(rows),duplicates),
-        'validity':dimension(checked_values,invalid),
+                row_failures += 1
+                issues.append({'row': index, 'column': column, 'before': value,
+                               'after': corrected, 'reason': reason})
+        failed_fields += row_failures
+        failed_rows += bool(row_failures or duplicate)
+    dimensions = {
+        'completeness': dimension(len(rows) * len(required), absent),
+        'conformity': dimension(len(rows) * len(dictionary), failed_fields),
+        'consistency': dimension(len(rows), duplicates),
+        'validity': dimension(checked_values, invalid),
     }
-    metrics=[metric['score'] for metric in dimensions.values()]
-    measured=[value for value in metrics if value is not None]
-    return {'metrics':metrics,'dimensions':dimensions,'measured_dimensions':len(measured),
-            'score':round(sum(measured)/len(measured),2) if measured else 0,'issues':issues}
+    return {'metrics': [metric['score'] for metric in dimensions.values()],
+            'dimensions': dimensions, 'record_conformity': dimension(len(rows), failed_rows),
+            'score': dimensions['conformity']['score'] or 0, 'issues': issues}
