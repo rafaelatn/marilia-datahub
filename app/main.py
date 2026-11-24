@@ -17,9 +17,11 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse, Response
 from pydantic import BaseModel
 from app import store
-from app.quality import evaluate, suggestion_similarity
-from app.processing import states, summary, published_projection, publication_check, department_quality, dataset_quality, PUBLICATION_MIN_SCORE
-from app.imports import records
+from app.quality import suggestion_similarity
+from app.semantic import enrich_issues
+from app.schema import dataset_schema, match_headers, project_rows
+from app.processing import baseline, stored_baseline, states, summary, published_projection, publication_check, department_quality, dataset_quality, PUBLICATION_MIN_SCORE
+from app.imports import decode_csv_numbers, records
 
 app=FastAPI(title='Marília DataHub',version='1.0.0')
 WEB=store.ROOT/'app/web'
@@ -59,12 +61,13 @@ def find(state,id):
     return d
 def writable(u,d):
     if not own(u,d): raise HTTPException(403,'Sem permissão de escrita')
-def version(d,rows,author,treated=False,changes=None,row_states=None,accuracy_reference=None):
+def version(d,rows,author,treated=False,changes=None,row_states=None,schema=None):
     previous=d['versions'][-1]
-    reference=previous.get('accuracy_reference',True) if accuracy_reference is None else accuracy_reference
-    result={'number':previous['number']+1,'rows':rows,'accuracy_reference':reference,'treated':treated,'changes':changes or [],'author':author,'created_at':now(),'hash':hashlib.sha256(json.dumps(rows,sort_keys=True,ensure_ascii=False).encode()).hexdigest()}
+    schema=dataset_schema(d,previous) if schema is None else schema
+    result={'number':previous['number']+1,'rows':rows,'structural_schema':deepcopy(schema),'treated':treated,'changes':changes or [],'author':author,'created_at':now(),'hash':hashlib.sha256(json.dumps(rows,sort_keys=True,ensure_ascii=False).encode()).hexdigest()}
     result['quality']=dataset_quality(d,rows,result)
     if row_states is not None: result['row_states']=row_states
+    if 'semantic_review' in previous: result['semantic_review']=deepcopy(previous['semantic_review'])
     return result
 
 @app.get('/',include_in_schema=False)
@@ -115,7 +118,10 @@ def state_view(u=Depends(user)):
     for d in state['datasets']:
         if accessible(u,d,state):
             copy=deepcopy(d)
+            copy.pop('synthetic_reference_id',None)
             for v in copy['versions']:
+                v.pop('accuracy_reference',None)
+                v['initial_diagnosis']=stored_baseline(copy,v)
                 if not own(u,d): v['changes']=[]
                 v['quality']=dataset_quality(copy,v['rows'],v)
                 if not own(u,d): v['quality']['issues']=[]
@@ -124,10 +130,11 @@ def state_view(u=Depends(user)):
                     v['processing']['processed_quality']['issues']=[]
                     v['processing']['raw_quality']['issues']=[]
             latest=copy['versions'][-1]
+            copy['dictionary']=dataset_schema(copy,latest)['colunas']
             copy['publication_check']=publication_check(copy,latest,latest['processing']['processed_quality'])
             copy['can_publish']=own(u,d) and not u.get('preview',False)
             ds.append(copy)
-    suggestions=[dict(s,similarity=suggestion_similarity(s)) for s in state['suggestions'] if u['role']=='admin' or s['sec']==u['role']]
+    suggestions=[dict(s,similarity=s['semantic_similarity'] if 'semantic_similarity' in s else suggestion_similarity(s)) for s in state['suggestions'] if u['role']=='admin' or s['sec']==u['role']]
     # A concessão de leitura pode incluir só parte das bases de outra secretaria.
     # Exibir a média oficial apenas para quem pode consultar todas as bases dela.
     departments=[
@@ -153,23 +160,31 @@ def decide(id:int,body:Decision,u=Depends(user)):
             if s['after'] is None and s['column']!='*': raise HTTPException(422,'Sem correção confiável; confirme o valor na fonte antes de importar nova versão.')
             previous=d['versions'][-1]
             rows=deepcopy(previous['rows'])
-            if s['row']>=len(rows) or (s['column']!='*' and rows[s['row']].get(s['column'])!=s['before']): raise HTTPException(409,'Sugestão desatualizada')
+            if s['row']>=len(rows):
+                raise HTTPException(409,'Sugestão desatualizada')
+            original=rows[s['row']]
+            if (original if s['column']=='*' else original.get(s['column']))!=s['before']:
+                raise HTTPException(409,'Sugestão desatualizada')
             status=states(d['versions'][-1])[:]
-            if s['column']=='*': rows.pop(s['row']);status.pop(s['row'])
+            if s['column']=='*':
+                rows.pop(s['row'])
+                status.pop(s['row'])
+                for pending in state['suggestions']:
+                    if pending is s or pending['dataset']!=d['id'] or pending['status']!='pending':
+                        continue
+                    if pending['row']==s['row']:
+                        pending['status']='superseded'
+                    elif pending['row']>s['row']:
+                        pending['row']-=1
             else: rows[s['row']][s['column']]=s['after']
-            if s['column']!='*' and not evaluate([rows[s['row']]],d['dictionary'])['issues']: status[s['row']]='processed'
+            if s['column']!='*' and not any(issue['row']==s['row'] for issue in dataset_quality(d,rows,previous)['issues']): status[s['row']]='processed'
             v=version(d,rows,u['name'],changes=[deepcopy(s)],row_states=status)
-            v['initial_diagnosis']=previous.get('initial_diagnosis') or initial_diagnosis(d,previous)
+            v['initial_diagnosis']=stored_baseline(d,previous)
             # Tratado somente após resolução de todas as pendências da base.
             v['treated']=all(x=='processed' for x in status) and not v['quality']['issues'];d['versions'].append(v)
         s['status']=body.decision;s['decided_by']=u['id'];s['decided_at']=now()
         store.write(state,revision)
     return {'status':body.decision}
-
-def initial_diagnosis(d,v):
-    quality=dataset_quality(d,v['rows'],v)
-    return {'version':v['number'],'score':quality['score'],'records':len(v['rows']),
-            'created_at':v['created_at'],'measured_dimensions':quality['measured_dimensions']}
 
 @app.post('/api/import')
 def import_file(file:UploadFile=File(),sec:str=Form(),sheet:str=Form(''),u=Depends(user)):
@@ -180,12 +195,12 @@ def import_file(file:UploadFile=File(),sec:str=Form(),sheet:str=Form(''),u=Depen
         if suffix=='.csv':
             try: text=content.decode('utf-8-sig')
             except UnicodeDecodeError: text=content.decode('cp1252')
-            frame=pd.read_csv(io.StringIO(text),sep=None,engine='python')
+            frame=pd.read_csv(io.StringIO(text),sep=None,engine='python',dtype=object,keep_default_na=False)
         elif suffix=='.xlsx':
             import zipfile
             with zipfile.ZipFile(io.BytesIO(content)) as z:
                 if sum(i.file_size for i in z.infolist())>50*1024*1024: raise HTTPException(413,'Planilha descompactada excede 50 MB')
-            frame=pd.read_excel(io.BytesIO(content),sheet_name=sheet or 0)
+            frame=pd.read_excel(io.BytesIO(content),sheet_name=sheet or 0,dtype=object,keep_default_na=False)
         else: raise HTTPException(422,'Utilize CSV ou XLSX')
         if frame.empty or len(frame)>100000: raise HTTPException(422,'Quantidade de linhas inválida')
         rows=records(frame)
@@ -193,18 +208,33 @@ def import_file(file:UploadFile=File(),sec:str=Form(),sheet:str=Form(''),u=Depen
     except Exception as exc: raise HTTPException(422,'Não foi possível ler a planilha ou a aba selecionada') from exc
     with LOCK:
         state=store.read();revision=state['revision']
-        candidates=[d for d in state['datasets'] if d['sec']==sec and set(frame.columns)=={c['nome_coluna'] for c in d['dictionary']}]
-        if len(candidates)!=1: raise HTTPException(422,'Colunas devem corresponder a um dataset da secretaria selecionada')
-        d=candidates[0];writable(u,d);v=version(d,rows,u['name'],accuracy_reference=False)
+        candidates=[]
+        for d in state['datasets']:
+            if d['sec']!=sec:
+                continue
+            schema=dataset_schema(d)
+            mapping=match_headers([str(header) for header in frame.columns],schema)
+            if mapping:
+                candidates.append((d,schema,mapping))
+        if len(candidates)!=1:
+            raise HTTPException(422,'Colunas desconhecidas ou ambíguas para os esquemas da secretaria')
+        d,schema,mapping=candidates[0]
+        writable(u,d)
+        if suffix=='.csv':
+            decode_csv_numbers(rows,mapping,schema)
+        v=version(d,project_rows(rows,mapping,schema),u['name'],schema=schema)
         v['row_states']=['raw']*len(rows)
-        v['initial_diagnosis']=initial_diagnosis(d,v)
+        v['initial_diagnosis']=baseline(d,v,rows)
+        v['semantic_review']=enrich_issues(v['quality']['issues'],schema)
         d['versions'].append(v)
         for s in state['suggestions']:
             if s['dataset']==d['id'] and s['status']=='pending': s['status']='superseded'
-        for issue in v['quality']['issues']:
-            state['suggestions'].append({'id':max([s['id'] for s in state['suggestions']],default=0)+1,'dataset':d['id'],'sec':sec,**issue,'status':'pending','method':'Regras do notebook'})
+        first_id=max((s['id'] for s in state['suggestions']),default=0)+1
+        for issue_id,issue in enumerate(v['quality']['issues'],first_id):
+            state['suggestions'].append({'id':issue_id,'dataset':d['id'],'sec':sec,
+                                         'status':'pending','method':'Esquema do dataset',**issue})
         store.write(state,revision)
-    return {'dataset':d['id'],'version':v['number'],'score':v['quality']['score']}
+    return {'dataset':d['id'],'version':v['number'],'score':v['quality']['score'],'semantic_review':v['semantic_review']}
 
 @app.post('/api/datasets/{id}/revalidate')
 def revalidate(id:str,u=Depends(user)):
@@ -216,13 +246,13 @@ def revalidate(id:str,u=Depends(user)):
         flagged={issue['row'] for issue in quality['issues']}
         flagged.update(s['row'] for s in state['suggestions'] if s['dataset']==id and s['status']=='pending')
         before=states(current)
-        after=['processed' if i not in flagged else status for i,status in enumerate(before)]
+        after=['raw' if i in flagged else 'processed' for i in range(len(before))]
         if after==before: return {'score':quality['score'],'validated':0}
         v=version(d,rows,u['name'],treated=not flagged,row_states=after)
-        v['initial_diagnosis']=current.get('initial_diagnosis') or initial_diagnosis(d,current)
+        v['initial_diagnosis']=stored_baseline(d,current)
         d['versions'].append(v)
         store.write(state,state['revision'])
-    return {'score':quality['score'],'validated':after.count('processed')-before.count('processed')}
+    return {'score':quality['score'],'validated':sum(old=='raw' and new=='processed' for old,new in zip(before,after))}
 
 class Grant(BaseModel):
     f:str
@@ -280,7 +310,7 @@ def public_dataset(id):
 def download(id:str,format:Literal['csv','json']='csv'):
     d,v=public_dataset(id)
     if format=='json': return Response(json.dumps(v['rows'],ensure_ascii=False),media_type='application/json',headers={'Content-Disposition':f'attachment; filename="{id}.json"'})
-    out=io.StringIO();writer=csv.DictWriter(out,fieldnames=[c['nome_coluna'] for c in d['dictionary']]);writer.writeheader();writer.writerows(v['rows'])
+    out=io.StringIO();writer=csv.DictWriter(out,fieldnames=[c['nome_coluna'] for c in dataset_schema(d,v)['colunas']],extrasaction='ignore');writer.writeheader();writer.writerows(v['rows'])
     return Response('\ufeff'+out.getvalue(),media_type='text/csv',headers={'Content-Disposition':f'attachment; filename="{id}.csv"'})
 
 @app.get('/public/{id}',response_class=HTMLResponse)

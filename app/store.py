@@ -48,15 +48,6 @@ def read():
     if not document: raise HTTPException(503,'Execute o SQL de carga do Marília DataHub no Supabase.')
     return document
 
-def read_reference(reference_id,dataset_id):
-    if dsn:=database_url():
-        from app import postgres
-        return postgres.read_reference(dsn,reference_id,dataset_id)
-    rows=remote('GET','datahub_accuracy_reference',params={
-        'reference_id':f'eq.{reference_id}','dataset_id':f'eq.{dataset_id}','select':'records',
-    })
-    return rows[0]['records'] if rows else None
-
 def write(state, expected):
     if state.get('current_only'):
         for d in state['datasets']:

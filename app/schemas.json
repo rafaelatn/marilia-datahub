@@ -1,0 +1,500 @@
+{
+  "SMS_atendimentos_ubs": {
+    "versao": 2,
+    "chave": [
+      "data_referencia",
+      "unidade",
+      "tipo_atendimento"
+    ],
+    "colunas": [
+      {
+        "aba": "SMS_atendimentos_ubs",
+        "nome_coluna": "data_referencia",
+        "tipo_dado": "data",
+        "descricao": "Primeiro dia do mês a que o dado se refere",
+        "obrigatoria": true,
+        "exemplo": "2026-07-01",
+        "aliases": [
+          "Data de Referência",
+          "Competência"
+        ],
+        "formato": "%Y-%m-%d",
+        "dia_do_mes": 1,
+        "formatos_entrada": [
+          "%d/%m/%Y",
+          "%Y-%m",
+          "%Y-%m-%d %H:%M:%S"
+        ],
+        "meses_abreviados": [
+          "jan",
+          "fev",
+          "mar",
+          "abr",
+          "mai",
+          "jun",
+          "jul",
+          "ago",
+          "set",
+          "out",
+          "nov",
+          "dez"
+        ]
+      },
+      {
+        "aba": "SMS_atendimentos_ubs",
+        "nome_coluna": "unidade",
+        "tipo_dado": "texto",
+        "descricao": "Nome da UBS",
+        "obrigatoria": true,
+        "exemplo": "UBS Exemplo Centro",
+        "aliases": [
+          "Nome da UBS"
+        ],
+        "valores_permitidos": [
+          "UBS Exemplo Centro",
+          "UBS Exemplo Fragata",
+          "UBS Exemplo Palmital",
+          "UBS Exemplo Cascata"
+        ],
+        "aliases_valores": {
+          "ubs ex. cascata": "UBS Exemplo Cascata"
+        },
+        "similaridade_minima": 80,
+        "similaridade_semantica": true
+      },
+      {
+        "aba": "SMS_atendimentos_ubs",
+        "nome_coluna": "bairro",
+        "tipo_dado": "texto",
+        "descricao": "Bairro da unidade (deve bater com a tabela bairro)",
+        "obrigatoria": true,
+        "exemplo": "Centro",
+        "valores_permitidos": [
+          "Centro",
+          "Fragata",
+          "Palmital",
+          "Cascata"
+        ]
+      },
+      {
+        "aba": "SMS_atendimentos_ubs",
+        "nome_coluna": "tipo_atendimento",
+        "tipo_dado": "texto",
+        "descricao": "Consulta médica, Enfermagem ou Odontológico",
+        "obrigatoria": true,
+        "exemplo": "Enfermagem",
+        "valores_permitidos": [
+          "Consulta médica",
+          "Enfermagem",
+          "Odontológico"
+        ],
+        "similaridade_semantica": true
+      },
+      {
+        "aba": "SMS_atendimentos_ubs",
+        "nome_coluna": "qtd_atendimentos",
+        "tipo_dado": "inteiro",
+        "descricao": "Atendimentos realizados no mês",
+        "obrigatoria": true,
+        "exemplo": 312,
+        "minimo": 0
+      }
+    ]
+  },
+  "SMS_vacinacao": {
+    "versao": 2,
+    "chave": [
+      "data_referencia",
+      "unidade",
+      "vacina"
+    ],
+    "colunas": [
+      {
+        "aba": "SMS_vacinacao",
+        "nome_coluna": "data_referencia",
+        "tipo_dado": "data",
+        "descricao": "Primeiro dia do mês a que o dado se refere",
+        "obrigatoria": true,
+        "exemplo": "2026-07-01",
+        "aliases": [
+          "Data de Referência",
+          "Competência"
+        ],
+        "formato": "%Y-%m-%d",
+        "dia_do_mes": 1,
+        "formatos_entrada": [
+          "%d/%m/%Y",
+          "%Y-%m",
+          "%Y-%m-%d %H:%M:%S"
+        ],
+        "meses_abreviados": [
+          "jan",
+          "fev",
+          "mar",
+          "abr",
+          "mai",
+          "jun",
+          "jul",
+          "ago",
+          "set",
+          "out",
+          "nov",
+          "dez"
+        ]
+      },
+      {
+        "aba": "SMS_vacinacao",
+        "nome_coluna": "unidade",
+        "tipo_dado": "texto",
+        "descricao": "Nome da UBS",
+        "obrigatoria": true,
+        "exemplo": "UBS Exemplo Fragata",
+        "aliases": [
+          "Nome da UBS"
+        ],
+        "valores_permitidos": [
+          "UBS Exemplo Centro",
+          "UBS Exemplo Fragata",
+          "UBS Exemplo Palmital",
+          "UBS Exemplo Cascata"
+        ],
+        "aliases_valores": {
+          "ubs ex. cascata": "UBS Exemplo Cascata"
+        },
+        "similaridade_minima": 80,
+        "similaridade_semantica": true
+      },
+      {
+        "aba": "SMS_vacinacao",
+        "nome_coluna": "bairro",
+        "tipo_dado": "texto",
+        "descricao": "Bairro da unidade",
+        "obrigatoria": true,
+        "exemplo": "Fragata",
+        "valores_permitidos": [
+          "Centro",
+          "Fragata",
+          "Palmital",
+          "Cascata"
+        ]
+      },
+      {
+        "aba": "SMS_vacinacao",
+        "nome_coluna": "vacina",
+        "tipo_dado": "texto",
+        "descricao": "Vacina aplicada",
+        "obrigatoria": true,
+        "exemplo": "Influenza"
+      },
+      {
+        "aba": "SMS_vacinacao",
+        "nome_coluna": "doses_aplicadas",
+        "tipo_dado": "inteiro",
+        "descricao": "Doses aplicadas no mês",
+        "obrigatoria": true,
+        "exemplo": 118,
+        "minimo": 0
+      },
+      {
+        "aba": "SMS_vacinacao",
+        "nome_coluna": "meta_doses",
+        "tipo_dado": "inteiro",
+        "descricao": "Meta de doses do mês para a unidade",
+        "obrigatoria": true,
+        "exemplo": 195,
+        "minimo": 0
+      }
+    ]
+  },
+  "SME_matriculas_escolas": {
+    "versao": 2,
+    "chave": [
+      "ano_letivo",
+      "escola",
+      "etapa"
+    ],
+    "colunas": [
+      {
+        "aba": "SME_matriculas_escolas",
+        "nome_coluna": "ano_letivo",
+        "tipo_dado": "inteiro",
+        "descricao": "Ano letivo das matrículas",
+        "obrigatoria": true,
+        "exemplo": 2026,
+        "minimo": 0
+      },
+      {
+        "aba": "SME_matriculas_escolas",
+        "nome_coluna": "escola",
+        "tipo_dado": "texto",
+        "descricao": "Nome da escola",
+        "obrigatoria": true,
+        "exemplo": "Escola Exemplo Palmital",
+        "aliases": [
+          "Nome da Escola"
+        ],
+        "valores_permitidos": [
+          "Escola Exemplo Centro",
+          "Escola Exemplo Centro II",
+          "Escola Exemplo Fragata",
+          "Escola Exemplo Fragata II",
+          "Escola Exemplo Palmital",
+          "Escola Exemplo Palmital II",
+          "Escola Exemplo Cascata",
+          "Escola Exemplo Cascata II"
+        ],
+        "aliases_valores": {
+          "escola exemplo fragata 2": "Escola Exemplo Fragata II"
+        },
+        "similaridade_minima": 80,
+        "similaridade_semantica": true
+      },
+      {
+        "aba": "SME_matriculas_escolas",
+        "nome_coluna": "bairro",
+        "tipo_dado": "texto",
+        "descricao": "Bairro da escola",
+        "obrigatoria": true,
+        "exemplo": "Palmital",
+        "valores_permitidos": [
+          "Centro",
+          "Fragata",
+          "Palmital",
+          "Cascata"
+        ]
+      },
+      {
+        "aba": "SME_matriculas_escolas",
+        "nome_coluna": "etapa",
+        "tipo_dado": "texto",
+        "descricao": "Educação Infantil, Fundamental I ou Fundamental II",
+        "obrigatoria": true,
+        "exemplo": "Fundamental I",
+        "valores_permitidos": [
+          "Educação Infantil",
+          "Fundamental I",
+          "Fundamental II"
+        ],
+        "similaridade_semantica": true
+      },
+      {
+        "aba": "SME_matriculas_escolas",
+        "nome_coluna": "qtd_matriculas",
+        "tipo_dado": "inteiro",
+        "descricao": "Alunos matriculados na etapa",
+        "obrigatoria": true,
+        "exemplo": 176,
+        "minimo": 0
+      },
+      {
+        "aba": "SME_matriculas_escolas",
+        "nome_coluna": "qtd_turmas",
+        "tipo_dado": "inteiro",
+        "descricao": "Turmas abertas na etapa",
+        "obrigatoria": false,
+        "exemplo": 7,
+        "minimo": 0
+      }
+    ]
+  },
+  "SAS_familias_cras": {
+    "versao": 2,
+    "chave": [
+      "data_referencia",
+      "cras"
+    ],
+    "colunas": [
+      {
+        "aba": "SAS_familias_cras",
+        "nome_coluna": "data_referencia",
+        "tipo_dado": "data",
+        "descricao": "Primeiro dia do mês a que o dado se refere",
+        "obrigatoria": true,
+        "exemplo": "2026-03-01",
+        "aliases": [
+          "Data de Referência",
+          "Competência"
+        ],
+        "formato": "%Y-%m-%d",
+        "dia_do_mes": 1,
+        "formatos_entrada": [
+          "%d/%m/%Y",
+          "%Y-%m",
+          "%Y-%m-%d %H:%M:%S"
+        ],
+        "meses_abreviados": [
+          "jan",
+          "fev",
+          "mar",
+          "abr",
+          "mai",
+          "jun",
+          "jul",
+          "ago",
+          "set",
+          "out",
+          "nov",
+          "dez"
+        ]
+      },
+      {
+        "aba": "SAS_familias_cras",
+        "nome_coluna": "cras",
+        "tipo_dado": "texto",
+        "descricao": "Nome do CRAS",
+        "obrigatoria": true,
+        "exemplo": "CRAS Exemplo Cascata",
+        "aliases": [
+          "Nome do CRAS"
+        ],
+        "valores_permitidos": [
+          "CRAS Exemplo Centro",
+          "CRAS Exemplo Fragata",
+          "CRAS Exemplo Palmital",
+          "CRAS Exemplo Cascata"
+        ],
+        "aliases_valores": {
+          "cras cascata": "CRAS Exemplo Cascata"
+        },
+        "similaridade_minima": 80,
+        "similaridade_semantica": true
+      },
+      {
+        "aba": "SAS_familias_cras",
+        "nome_coluna": "bairro",
+        "tipo_dado": "texto",
+        "descricao": "Bairro do CRAS",
+        "obrigatoria": true,
+        "exemplo": "Cascata",
+        "valores_permitidos": [
+          "Centro",
+          "Fragata",
+          "Palmital",
+          "Cascata"
+        ]
+      },
+      {
+        "aba": "SAS_familias_cras",
+        "nome_coluna": "familias_cadunico",
+        "tipo_dado": "inteiro",
+        "descricao": "Total de famílias no Cadastro Único (só total, sem identificação)",
+        "obrigatoria": true,
+        "exemplo": 325,
+        "minimo": 0
+      },
+      {
+        "aba": "SAS_familias_cras",
+        "nome_coluna": "familias_em_acompanhamento",
+        "tipo_dado": "inteiro",
+        "descricao": "Famílias em acompanhamento no mês",
+        "obrigatoria": false,
+        "exemplo": 70,
+        "minimo": 0
+      },
+      {
+        "aba": "SAS_familias_cras",
+        "nome_coluna": "atendimentos_realizados",
+        "tipo_dado": "inteiro",
+        "descricao": "Atendimentos realizados no mês",
+        "obrigatoria": true,
+        "exemplo": 112,
+        "minimo": 0
+      }
+    ]
+  },
+  "SAS_chamados_ti": {
+    "versao": 2,
+    "chave": [
+      "data_referencia",
+      "secretaria",
+      "tipo_chamado"
+    ],
+    "colunas": [
+      {
+        "aba": "SETI_chamados_ti",
+        "nome_coluna": "data_referencia",
+        "tipo_dado": "data",
+        "descricao": "Primeiro dia do mês a que o dado se refere",
+        "obrigatoria": true,
+        "exemplo": "2026-07-01",
+        "aliases": [
+          "Data de Referência",
+          "Competência"
+        ],
+        "formato": "%Y-%m-%d",
+        "dia_do_mes": 1,
+        "formatos_entrada": [
+          "%d/%m/%Y",
+          "%Y-%m",
+          "%Y-%m-%d %H:%M:%S"
+        ],
+        "meses_abreviados": [
+          "jan",
+          "fev",
+          "mar",
+          "abr",
+          "mai",
+          "jun",
+          "jul",
+          "ago",
+          "set",
+          "out",
+          "nov",
+          "dez"
+        ]
+      },
+      {
+        "aba": "SETI_chamados_ti",
+        "nome_coluna": "secretaria",
+        "tipo_dado": "texto",
+        "descricao": "Sigla da secretaria que abriu o chamado (deve bater com secretaria.sigla)",
+        "obrigatoria": true,
+        "exemplo": "SMS",
+        "aliases": [
+          "Sigla da Secretaria"
+        ],
+        "valores_permitidos": [
+          "SMS",
+          "SME",
+          "SAS",
+          "SETI"
+        ],
+        "aliases_valores": {
+          "saúde": "SMS"
+        }
+      },
+      {
+        "aba": "SETI_chamados_ti",
+        "nome_coluna": "tipo_chamado",
+        "tipo_dado": "texto",
+        "descricao": "Hardware, Rede ou Sistema",
+        "obrigatoria": true,
+        "exemplo": "Rede",
+        "valores_permitidos": [
+          "Hardware",
+          "Rede",
+          "Sistema"
+        ],
+        "similaridade_semantica": true
+      },
+      {
+        "aba": "SETI_chamados_ti",
+        "nome_coluna": "qtd_chamados",
+        "tipo_dado": "inteiro",
+        "descricao": "Chamados abertos no mês",
+        "obrigatoria": true,
+        "exemplo": 14,
+        "minimo": 0
+      },
+      {
+        "aba": "SETI_chamados_ti",
+        "nome_coluna": "tempo_medio_horas",
+        "tipo_dado": "decimal",
+        "descricao": "Tempo médio de resolução em horas",
+        "obrigatoria": false,
+        "exemplo": "6.5",
+        "minimo": 0
+      }
+    ]
+  }
+}

@@ -40,9 +40,3 @@ def read_state(dsn):
 
 def save_state(dsn, state, expected):
     return query(dsn,'select public.datahub_save(%s,%s)',(Jsonb(state),expected))[0]
-
-
-def read_reference(dsn, reference_id, dataset_id):
-    row=query(dsn,'select records from public.datahub_accuracy_reference where reference_id=%s and dataset_id=%s',
-              (reference_id,dataset_id))
-    return row[0] if row else None

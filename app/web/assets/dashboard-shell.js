@@ -19,8 +19,7 @@ const ic=n=>`<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColo
 
 let LIM=95;
 const SEC=[];
-SEC.forEach(s=>s.score=Math.round(s.m.reduce((a,b)=>a+b)/4));
-const MET=['Completude','Acurácia','Consistência','Validade'];
+const MET=['Completude','Conformidade estrutural','Consistência','Validade'];
 const SUG=[];
 const PASS=[];
 const CAT=[];
@@ -71,16 +70,16 @@ function geral(){
 function secretaria(){
   const s=SEC.find(x=>x.id===cur),ro=!mine(s);
   const sg=SUG.filter(x=>x.s===s.id);
-  return head(s.n,ro?'Visualização somente leitura (acesso concedido pelo administrador)':'Detalhamento do Data Quality Score',s.score==null?'':bdg('Média da secretaria '+numberBR(s.score),kind(s.score)))
+  return head(s.n,ro?'Visualização somente leitura (acesso concedido pelo administrador)':'Detalhamento da conformidade estrutural',s.score==null?'':bdg('Média da secretaria '+numberBR(s.score),kind(s.score)))
   +departmentTabs()
   +`<div class="dataset-grid department-quality">${DATA.datasets.filter(d=>d.sec===cur).map(d=>datasetQuality(d,true)).join('')}</div>`
-  +panel('Inconsistências detectadas','Acompanhe o status das sugestões desta secretaria',(!ro&&sg.length?'<div class="row"><button class="btn" data-a="nav" data-id="sugestoes">Abrir fila de sugestões</button></div>':'')+(sg.length?`<div class="tw"><table><tr><th>Termo original</th><th>Sugestão</th><th>Motivo</th><th title="Similaridade textual entre o termo original e a sugestão. Não é o Data Quality Score.">Similaridade</th><th>Status</th></tr>${sg.map(x=>`<tr><td>${x.a}</td><td>${x.b}</td><td>${x.why}</td><td class="mono">${x.p!=null?numberBR(x.p)+'%':'Sem par textual'}</td><td>${suggestionStatus(x.id)}</td></tr>`).join('')}</table></div>`:'<p class="sub">Nenhuma sugestão para esta secretaria.</p>'));
+  +panel('Inconsistências detectadas','Acompanhe o status das sugestões desta secretaria',(!ro&&sg.length?'<div class="row"><button class="btn" data-a="nav" data-id="sugestoes">Abrir fila de sugestões</button></div>':'')+(sg.length?`<div class="tw"><table><tr><th>Termo original</th><th>Sugestão</th><th>Motivo</th><th title="Similaridade textual entre o termo original e a sugestão. Não é o Conformidade estrutural.">Similaridade</th><th>Status</th></tr>${sg.map(x=>`<tr><td>${x.a}</td><td>${x.b}</td><td>${x.why}</td><td class="mono">${x.p!=null?numberBR(x.p)+'%':'Sem par textual'}</td><td>${suggestionStatus(x.id)}</td></tr>`).join('')}</table></div>`:'<p class="sub">Nenhuma sugestão para esta secretaria.</p>'));
 }
 
 function sugestoes(){
   const L=SUG.filter(x=>adm()||x.s===role);
   return head('Fila de sugestões','Aprovações voltam ao fluxo de mineração como feedback')+(adm()?'':note('Exibindo apenas sugestões da sua secretaria.'))
-  +panel('Sugestões de padronização','Similaridade compara o rótulo original com a correção sugerida. Datas, valores vazios e sugestões sem texto de referência aparecem como Sem par textual.',`<div class="tw"><table><tr><th>Secretaria</th><th>Termo original</th><th>Sugestão</th><th>Motivo</th><th title="Similaridade textual entre o termo original e a sugestão. Não é o Data Quality Score.">Similaridade</th><th></th></tr>${L.map(x=>`<tr><td>${sname(x.s)}</td><td>${x.a}</td><td>${x.b}</td><td>${x.why}</td><td class="mono">${x.p!=null?numberBR(x.p)+'%':'Sem par textual'}</td><td>${actions(x.id)}</td></tr>`).join('')}</table></div>`);
+  +panel('Sugestões de padronização','Similaridade compara o rótulo original com a correção sugerida. Datas, valores vazios e sugestões sem texto de referência aparecem como Sem par textual.',`<div class="tw"><table><tr><th>Secretaria</th><th>Termo original</th><th>Sugestão</th><th>Motivo</th><th title="Similaridade textual entre o termo original e a sugestão. Não é o Conformidade estrutural.">Similaridade</th><th></th></tr>${L.map(x=>`<tr><td>${sname(x.s)}</td><td>${x.a}</td><td>${x.b}</td><td>${x.why}</td><td class="mono">${x.p!=null?numberBR(x.p)+'%':'Sem par textual'}</td><td>${actions(x.id)}</td></tr>`).join('')}</table></div>`);
 }
 
 function passport(){

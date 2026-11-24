@@ -8,7 +8,7 @@ const rowStates=v=>v.row_states||v.rows.map(()=>v.treated?'processed':'raw');
 const counts=v=>({processed:rowStates(v).filter(s=>s==='processed').length,raw:rowStates(v).filter(s=>s==='raw').length});
 const searchText=value=>String(value??'').normalize('NFD').replace(/\p{M}/gu,'').toLocaleLowerCase('pt-BR');
 function matchingRows(d,v,status,search){
-  const columns=d.dictionary.map(c=>c.nome_coluna);
+  const columns=(v.structural_schema?.colunas??d.dictionary).map(c=>c.nome_coluna);
   if(search.column&&!columns.includes(search.column))return [];
   const selected=search.column?[search.column]:columns;
   const query=searchText(search.query);
@@ -74,23 +74,30 @@ function qualityComparison(v){
   const {raw_quality:raw,processed_quality:processed,raw_count,processed_count}=v.processing;
   const dimensions=[
     ['completeness','Completude','Campos obrigatórios preenchidos'],
-    ['accuracy','Acurácia','Medidas numéricas conferidas com a base de referência'],
+    ['conformity','Conformidade estrutural','Campos conformes ao esquema do dataset'],
     ['consistency','Consistência','Registros sem repetição na chave de identificação'],
     ['validity','Validade','Valores preenchidos conformes ao tipo, formato e domínio'],
   ];
   function metric(q,key,rows){
     if(!rows)return 'Sem registros';
     const m=q.dimensions[key];
-    const coverage=m.reference?`<br><span class="sub">${esc(m.reference)} · ${numberBR(m.matched_records)} de ${numberBR(m.total_records)} registros encontrados</span>`:'';
-    if(m.score==null)return (key==='accuracy'&&!m.reference?'Sem referência':'Sem verificações')+coverage;
-    return `<b>${numberBR(m.score)}%</b><br><span class="sub">${numberBR(m.failures)} falhas em ${numberBR(m.checked)} verificações</span>${coverage}`;
+    if(m.score==null)return 'Sem verificações';
+    return `<b>${numberBR(m.score)}%</b><br><span class="sub">${numberBR(m.valid)} de ${numberBR(m.checked)} verificações conformes</span>`;
   }
-  const total=(q,rows)=>rows?`<b>${numberBR(q.score)}/100</b><br><span class="sub">${q.measured_dimensions} de 4 dimensões medidas</span>`:'Sem registros';
-  return panel('Comparativo de qualidade','Brutos e processados da carga atual',`<div class="tw"><table>
-    <thead><tr><th>Dimensão</th><th>Brutos</th><th>Processados</th><th>O que foi verificado</th></tr></thead>
-    <tbody>${dimensions.map(([key,label,rule])=>`<tr><th scope="row">${label}</th><td>${metric(raw,key,raw_count)}</td><td>${metric(processed,key,processed_count)}</td><td>${rule}</td></tr>`).join('')}
-    <tr><th scope="row">Data Quality Score</th><td>${total(raw,raw_count)}</td><td>${total(processed,processed_count)}</td><td>Média das dimensões medidas</td></tr></tbody>
-  </table></div>`);
+  const initial=v.initial_diagnosis;
+  const actual=v.quality.dimensions.conformity;
+  const review=v.semantic_review;
+  const semantic=review?.status==='indisponivel'?' · Análise semântica indisponível na importação':
+    review?.avaliados?(' · MiniLM'+(review.status==='parcial'?' (amostra)':'')+': '+numberBR(review.sugestoes)+' sugestões'):'';
+  const gain=initial?.score!=null&&actual.score!=null
+    ? `${numberBR(Math.round((actual.score-initial.score)*100)/100)} p.p.` : 'Indisponível';
+  const fraction=m=>m?.score!=null ? `${numberBR(m.score)}% (${numberBR(m.valid)}/${numberBR(m.checked)})` : 'Indisponível';
+  return panel('Conformidade estrutural',`Esquema v${v.quality.schema_version} · Variação nos campos: ${gain}${semantic}`,`<div class="tw"><table>
+    <thead><tr><th>Unidade avaliada</th><th>Antes do tratamento</th><th>Estado atual</th></tr></thead>
+    <tbody><tr><th scope="row">Campos</th><td>${fraction(initial?.fields)}</td><td>${fraction(actual)}</td></tr>
+    <tr><th scope="row">Registros</th><td>${fraction(initial?.record_conformity)}</td><td>${fraction(v.quality.record_conformity)}</td></tr></tbody></table></div>
+    <div class="tw"><table><thead><tr><th>Dimensão</th><th>Brutos atuais</th><th>Processados atuais</th><th>O que foi verificado</th></tr></thead>
+    <tbody>${dimensions.map(([key,label,rule])=>`<tr><th scope="row">${label}</th><td>${metric(raw,key,raw_count)}</td><td>${metric(processed,key,processed_count)}</td><td>${rule}</td></tr>`).join('')}</tbody></table></div>`);
 }
 function datasetQuality(d, compact=false){
   const v=currentVersion(d),q=v.quality,initial=v.initial_diagnosis;
@@ -98,8 +105,7 @@ function datasetQuality(d, compact=false){
   const canValidate=!DATA.user.preview&&(role==='admin'||role===d.sec)&&counts(v).raw>0;
   const metrics=MET.map((label,i)=>{
     const value=q.metrics[i];
-    const synthetic=i===1&&q.dimensions.accuracy.reference;
-    return `<div><dt>${label}${synthetic?' (demo)':''}</dt><dd>${value==null?(i===1&&!synthetic?'Sem referência':'Sem verificações'):numberBR(value)+'%'}</dd></div>`;
+    return `<div><dt>${label}</dt><dd>${value==null?'Sem verificações':numberBR(value)+'%'}</dd></div>`;
   }).join('');
   return panel(esc(d.name),`Score atual: ${numberBR(q.score)}/100 · ${diagnosis}`,
     chart(qualitySeries([d]),compact)+`<dl class="quality-metrics">${metrics}</dl>`+
@@ -108,7 +114,7 @@ function datasetQuality(d, compact=false){
 function overviewQuality(){
   return '<div class="overview-quality">'+SEC.filter(s=>s.available&&mine(s)).map(s=>{
     const datasets=DATA.datasets.filter(d=>d.sec===s.id);
-    return panel(s.n,`Média da secretaria: ${s.score==null?'Sem dados':numberBR(s.score)+'/100'} · cada dataset tem o mesmo peso`,
+    return panel(s.n,`Conformidade média da secretaria: ${s.score==null?'Sem dados':numberBR(s.score)+'/100'} · cada dataset tem o mesmo peso`,
       `<div class="dataset-grid">${datasets.map(d=>datasetQuality(d)).join('')}</div>`);
   }).join('')+'</div>';
 }
@@ -123,7 +129,7 @@ function distributionPanel(compact=false){
       <button class="btn" data-a="refresh-real">Atualizar dados</button></div>`)+'</div>';
   }
   return panel('Distribuição dos registros','Dados atuais das bases disponíveis',
-    `<div class="row"><div><b>${numberBR(s.total)} registros em ${s.bases} bases</b><small>Dados da planilha e registros sintéticos na mesma consulta</small></div><button class="btn" data-a="refresh-real">Atualizar dados</button></div>`+
+    `<div class="row"><div><b>${numberBR(s.total)} registros em ${s.bases} bases</b><small>Registros da carga atual</small></div><button class="btn" data-a="refresh-real">Atualizar dados</button></div>`+
     `<div class="row"><div><b>Processados: ${numberBR(s.processed)} (${percentage(s.processed)}%)</b><small>Score calculado por subconjunto</small></div>${bdg('Processados','ok')}</div>`+
     `<div class="row"><div><b>Brutos / em tratamento: ${numberBR(s.raw)} (${percentage(s.raw)}%)</b><small>Registros brutos em todas as bases; consulte as pendências na fila de sugestões</small></div>${bdg('Brutos / em tratamento','warn')}</div>`);
 }
@@ -143,7 +149,7 @@ async function refresh(){
     const bases=ds.filter(d=>d.sec===s.id),current=bases.map(d=>d.versions.at(-1));
     return {...s,score:s.quality?.mean??null,pend:DATA.suggestions.filter(x=>x.sec===s.id&&x.status==='pending').length,upd:current.length?new Date(current.at(-1).created_at).toLocaleDateString('pt-BR'):'—',pub:bases.some(d=>d.published_version!==null),available:!!bases.length};
   }));
-  SUG.splice(0,SUG.length,...DATA.suggestions.filter(s=>['pending','approved','rejected'].includes(s.status)).map(s=>({id:s.id,s:s.sec,a:esc(s.before==null?'(vazio)':typeof s.before==='object'?JSON.stringify(s.before):s.before),b:esc(s.after??'Confirmar na fonte'),p:s.similarity??null,why:esc(s.reason+' · '+s.dataset+' · linha '+(s.row+2))})));
+  SUG.splice(0,SUG.length,...DATA.suggestions.filter(s=>['pending','approved','rejected'].includes(s.status)).map(s=>({id:s.id,s:s.sec,a:esc(s.before==null?'(vazio)':typeof s.before==='object'?JSON.stringify(s.before):s.before),b:esc(s.after??'Confirmar na fonte'),p:s.similarity??null,why:esc(s.reason+' · '+(s.method||'Esquema do dataset')+' · '+s.dataset+' · linha '+(s.row+2))})));
   Object.keys(dec).forEach(k=>delete dec[k]);DATA.suggestions.forEach(s=>{if(s.status==='approved')dec[s.id]='ok';if(s.status==='rejected')dec[s.id]='no'});
   PASS.splice(0,PASS.length,...ds.flatMap(d=>d.versions.map(v=>['v'+v.number,d.sec,esc(d.name)+' · '+(v.treated?'Tratado':'Original / em tratamento')+' · '+v.rows.length+' registros · '+v.changes.length+' alterações · Score '+v.quality.score,esc(v.author),new Date(v.created_at).toLocaleDateString('pt-BR')])).reverse());
   CAT.splice(0,CAT.length,...ds.map(d=>[esc(d.name),d.sec,'v'+d.versions.at(-1).number,({publico:'Público',restrito:'Restrito',sigiloso:'Sigiloso'})[d.classification],d.versions.at(-1).quality.score,d.id]));
@@ -166,7 +172,7 @@ V.geral=()=>{
   return '<div class="overview-layout">'+html.replace('<div class="kpis">',distributionPanel(true)+'<div class="kpis">')+'</div>';
 };
 V.catalogo=()=>{
-  return head('Catálogo de datasets','Dados da planilha e registros sintéticos integrados; score por dataset')
+  return head('Catálogo de datasets','Conformidade estrutural por dataset')
     +distributionPanel()
     +panel('Datasets','Selecione um dataset para consultar e filtrar os registros',
     `<div class="tw"><table><tr><th>Dataset</th><th>Secretaria</th><th>Registros</th><th>Estado</th><th>Classificação</th><th>Score da base</th></tr>${DATA.datasets.map(d=>{
@@ -190,7 +196,7 @@ V.passport=()=>head('Data Passport','Identificação e atualização dos dados a
 
 async function detail(id,number){
   const d=DATA.datasets.find(d=>d.id===id),v=d.versions.find(v=>v.number===number)||d.versions.at(-1);
-  const cols=d.dictionary.map(c=>c.nome_coluna);
+  const cols=(v.structural_schema?.colunas??d.dictionary).map(c=>c.nome_coluna);
   const status=rowStates(v),visible=matchingRows(d,v,recordFilter,recordSearch),c=counts(v);
   const searching=!!(recordSearch.column||recordSearch.query);
   const searchForm=`<form id="record-search" class="record-search" data-id="${esc(d.id)}" data-number="${v.number}">
